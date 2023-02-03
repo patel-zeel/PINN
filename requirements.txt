@@ -1,0 +1,5 @@
+# Manually install CPU/GPU/TPU version of jax and jaxlib
+pyDOE2
+flax
+numpy
+matplotlib
