@@ -117,7 +117,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link" href="./index.html" rel="" target="">
+    <a class="nav-link" href="./index.qmd" rel="" target="">
  <span class="menu-text">Home</span></a>
   </li>  
   <li class="nav-item">
@@ -188,7 +188,7 @@ u(t, x) : \text{velocity of the fluid at time } t \text{ and position } x,\\
 <p>Here, we are going to use a neural network to approximate <span class="math inline">\(u(t, x)\)</span> function.</p>
 <section id="imports" class="level2">
 <h2 class="anchored" data-anchor-id="imports">Imports</h2>
-<div class="cell" data-execution_count="12">
+<div class="cell" data-execution_count="1">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"CUDA_VISIBLE_DEVICES"</span>] <span class="op">=</span> <span class="st">"3"</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -207,6 +207,12 @@ u(t, x) : \text{velocity of the fluid at time } t \text{ and position } x,\\
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyDOE2 <span class="im">import</span> lhs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>/home/patel_zeel/miniconda3/envs/jax_gpu/lib/python3.9/site-packages/flax/struct.py:136: FutureWarning: jax.tree_util.register_keypaths is deprecated, and will be removed in a future release. Please use `register_pytree_with_keys()` instead.
+  jax.tree_util.register_keypaths(data_clz, keypaths)
+/home/patel_zeel/miniconda3/envs/jax_gpu/lib/python3.9/site-packages/flax/struct.py:136: FutureWarning: jax.tree_util.register_keypaths is deprecated, and will be removed in a future release. Please use `register_pytree_with_keys()` instead.
+  jax.tree_util.register_keypaths(data_clz, keypaths)</code></pre>
+</div>
 </div>
 </section>
 <section id="inference" class="level2">
@@ -214,21 +220,21 @@ u(t, x) : \text{velocity of the fluid at time } t \text{ and position } x,\\
 <p>Here the task is to use the initial and boundary conditions data to train a neural network to approximate the solution of the PDE. We will use the ground truth data given by Raissi et al.&nbsp;to evaulate the accuracy of the neural network. Here are some pointers: * <a href="https://github.com/maziarraissi/PINNs/issues/10">How was the ground truth data generated?</a> * We will use only 100 data points from initial and boundary conditions to calculate data-driven MSE loss * We will use 10000 data points randomly sampled from the domain to calculate the constraint MSE loss. Note that we do not need any ground truth data to calculate this loss.</p>
 <section id="load-and-visualize-data" class="level3">
 <h3 class="anchored" data-anchor-id="load-and-visualize-data">Load and visualize Data</h3>
-<div class="cell" data-execution_count="13">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> scipy.io.loadmat(<span class="st">'burgers_shock.mat'</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> data[<span class="st">'t'</span>].flatten()[:,<span class="va">None</span>]</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> data[<span class="st">'x'</span>].flatten()[:,<span class="va">None</span>]</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>Exact <span class="op">=</span> np.real(data[<span class="st">'usol'</span>]).T</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>X, T <span class="op">=</span> np.meshgrid(x,t)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>X<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>T<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>Exact<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">4</span>))</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>plt.imshow(Exact.T, aspect<span class="op">=</span><span class="st">'auto'</span>, cmap<span class="op">=</span><span class="st">'rainbow'</span>, origin<span class="op">=</span><span class="st">'lower'</span>, extent<span class="op">=</span>[t.<span class="bu">min</span>(), t.<span class="bu">max</span>(), x.<span class="bu">min</span>(), x.<span class="bu">max</span>()])<span class="op">;</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">'t'</span>)</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">'x'</span>)</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>plt.colorbar()<span class="op">;</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># plt.scatter(T.ravel(), X.ravel(), c=Exact.ravel(), cmap='coolwarm', s=50);</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-execution_count="2">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> scipy.io.loadmat(<span class="st">'burgers_shock.mat'</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> data[<span class="st">'t'</span>].flatten()[:,<span class="va">None</span>]</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> data[<span class="st">'x'</span>].flatten()[:,<span class="va">None</span>]</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>Exact <span class="op">=</span> np.real(data[<span class="st">'usol'</span>]).T</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>X, T <span class="op">=</span> np.meshgrid(x,t)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>X<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>T<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>Exact<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">4</span>))</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>plt.imshow(Exact.T, aspect<span class="op">=</span><span class="st">'auto'</span>, cmap<span class="op">=</span><span class="st">'rainbow'</span>, origin<span class="op">=</span><span class="st">'lower'</span>, extent<span class="op">=</span>[t.<span class="bu">min</span>(), t.<span class="bu">max</span>(), x.<span class="bu">min</span>(), x.<span class="bu">max</span>()])<span class="op">;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">'t'</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">'x'</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>plt.colorbar()<span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># plt.scatter(T.ravel(), X.ravel(), c=Exact.ravel(), cmap='coolwarm', s=50);</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>X.shape=(100, 256) T.shape=(100, 256) Exact.shape=(100, 256)</code></pre>
 </div>
@@ -239,129 +245,148 @@ u(t, x) : \text{velocity of the fluid at time } t \text{ and position } x,\\
 </section>
 <section id="model" class="level3">
 <h3 class="anchored" data-anchor-id="model">Model</h3>
-<div class="cell" data-execution_count="14">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Burgers_NN(nn.Module):</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    layers: <span class="bu">list</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">@nn.compact</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, t, x):</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        t <span class="op">=</span> <span class="dv">2</span><span class="op">*</span>t <span class="op">-</span> <span class="dv">1</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        X <span class="op">=</span> jnp.concatenate([t.reshape(<span class="dv">1</span>,<span class="dv">1</span>), x.reshape(<span class="dv">1</span>,<span class="dv">1</span>)], axis<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> num_neurons <span class="kw">in</span> <span class="va">self</span>.layers:</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> nn.Dense(num_neurons)(X)</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> nn.tanh(X)</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> nn.Dense(<span class="dv">1</span>)(X)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> y.squeeze()</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Burgers_NN(layers<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-execution_count="3">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Burgers_NN(nn.Module):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    layers: <span class="bu">list</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">@nn.compact</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, t, x):</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        t <span class="op">=</span> <span class="dv">2</span><span class="op">*</span>t <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        X <span class="op">=</span> jnp.concatenate([t.reshape(<span class="dv">1</span>,<span class="dv">1</span>), x.reshape(<span class="dv">1</span>,<span class="dv">1</span>)], axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> num_neurons <span class="kw">in</span> <span class="va">self</span>.layers:</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> nn.Dense(num_neurons)(X)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> nn.tanh(X)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> nn.Dense(<span class="dv">1</span>)(X)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> y.squeeze()</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Burgers_NN(layers<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="generate-training-data" class="level3">
 <h3 class="anchored" data-anchor-id="generate-training-data">Generate training data</h3>
-<div class="cell" data-execution_count="15">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>train_size <span class="op">=</span> <span class="dv">100</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>collocation_size <span class="op">=</span> <span class="dv">10000</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Boundary data</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>xb <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> lhs(<span class="dv">1</span>, train_size<span class="op">//</span><span class="dv">2</span>) <span class="op">-</span> <span class="dv">1</span> <span class="co"># x in [-1, 1]</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>tb <span class="op">=</span> np.zeros((train_size<span class="op">//</span><span class="dv">2</span>, <span class="dv">1</span>)) <span class="co"># t = 0</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>ub <span class="op">=</span> <span class="op">-</span>jnp.sin(jnp.pi <span class="op">*</span> xb) <span class="co"># u(0, x) = -sin(pi*x)</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Initial data</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>xi <span class="op">=</span> jnp.ones((train_size<span class="op">//</span><span class="dv">2</span>, <span class="dv">1</span>))</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>xi <span class="op">=</span> xi.at[:<span class="bu">len</span>(xi)<span class="op">//</span><span class="dv">2</span>].<span class="bu">set</span>(<span class="op">-</span><span class="dv">1</span>)</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>ti <span class="op">=</span> lhs(<span class="dv">1</span>, train_size<span class="op">//</span><span class="dv">2</span>) <span class="co"># t in [0, 1]</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>ui <span class="op">=</span> jnp.zeros_like(ti) <span class="co"># u(t, 0) = 0</span></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>x_train <span class="op">=</span> jnp.concatenate([xb, xi], axis<span class="op">=</span><span class="dv">0</span>).ravel()</span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>t_train <span class="op">=</span> jnp.concatenate([tb, ti], axis<span class="op">=</span><span class="dv">0</span>).ravel()</span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>u_train <span class="op">=</span> jnp.concatenate([ub, ui], axis<span class="op">=</span><span class="dv">0</span>).ravel()</span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Collocation points</span></span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>xc <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> lhs(<span class="dv">1</span>, collocation_size).ravel() <span class="op">-</span> <span class="dv">1</span> <span class="co"># x in [-1, 1]</span></span>
-<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>tc <span class="op">=</span> lhs(<span class="dv">1</span>, collocation_size).ravel() <span class="co"># t in [0, 1]</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-execution_count="4">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>train_size <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>collocation_size <span class="op">=</span> <span class="dv">10000</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Boundary data</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>xb <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> lhs(<span class="dv">1</span>, train_size<span class="op">//</span><span class="dv">2</span>) <span class="op">-</span> <span class="dv">1</span> <span class="co"># x in [-1, 1]</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>tb <span class="op">=</span> np.zeros((train_size<span class="op">//</span><span class="dv">2</span>, <span class="dv">1</span>)) <span class="co"># t = 0</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>ub <span class="op">=</span> <span class="op">-</span>jnp.sin(jnp.pi <span class="op">*</span> xb) <span class="co"># u(0, x) = -sin(pi*x)</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Initial data</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>xi <span class="op">=</span> jnp.ones((train_size<span class="op">//</span><span class="dv">2</span>, <span class="dv">1</span>))</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>xi <span class="op">=</span> xi.at[:<span class="bu">len</span>(xi)<span class="op">//</span><span class="dv">2</span>].<span class="bu">set</span>(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>ti <span class="op">=</span> lhs(<span class="dv">1</span>, train_size<span class="op">//</span><span class="dv">2</span>) <span class="co"># t in [0, 1]</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>ui <span class="op">=</span> jnp.zeros_like(ti) <span class="co"># u(t, 0) = 0</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>x_train <span class="op">=</span> jnp.concatenate([xb, xi], axis<span class="op">=</span><span class="dv">0</span>).ravel()</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>t_train <span class="op">=</span> jnp.concatenate([tb, ti], axis<span class="op">=</span><span class="dv">0</span>).ravel()</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>u_train <span class="op">=</span> jnp.concatenate([ub, ui], axis<span class="op">=</span><span class="dv">0</span>).ravel()</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Collocation points</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>xc <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> lhs(<span class="dv">1</span>, collocation_size).ravel() <span class="op">-</span> <span class="dv">1</span> <span class="co"># x in [-1, 1]</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>tc <span class="op">=</span> lhs(<span class="dv">1</span>, collocation_size).ravel() <span class="co"># t in [0, 1]</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div class="cell" data-execution_count="16">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">4</span>))</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>plt.scatter(t_train, x_train, c<span class="op">=</span>u_train, cmap<span class="op">=</span><span class="st">'rainbow'</span>, s<span class="op">=</span><span class="dv">50</span>, label<span class="op">=</span><span class="st">'train points'</span>)<span class="op">;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>plt.colorbar(label<span class="op">=</span><span class="st">'u(t, x)'</span>)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>plt.scatter(tc, xc, c<span class="op">=</span><span class="st">'k'</span>, s<span class="op">=</span><span class="dv">1</span>, label<span class="op">=</span><span class="st">'collocation points'</span>)<span class="op">;</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">'t'</span>)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">'x'</span>)</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>plt.legend(bbox_to_anchor<span class="op">=</span>(<span class="fl">1.2</span>, <span class="dv">1</span>), loc<span class="op">=</span><span class="st">'upper left'</span>)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-execution_count="5">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">4</span>))</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>plt.scatter(t_train, x_train, c<span class="op">=</span>u_train, cmap<span class="op">=</span><span class="st">'rainbow'</span>, s<span class="op">=</span><span class="dv">50</span>, label<span class="op">=</span><span class="st">'train points'</span>)<span class="op">;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>plt.colorbar(label<span class="op">=</span><span class="st">'u(t, x)'</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>plt.scatter(tc, xc, c<span class="op">=</span><span class="st">'k'</span>, s<span class="op">=</span><span class="dv">1</span>, label<span class="op">=</span><span class="st">'collocation points'</span>)<span class="op">;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">'t'</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">'x'</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>plt.legend(bbox_to_anchor<span class="op">=</span>(<span class="fl">1.2</span>, <span class="dv">1</span>), loc<span class="op">=</span><span class="st">'upper left'</span>)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <p><img src="Burgers_Equation_files/figure-html/cell-6-output-1.png" class="img-fluid"></p>
 </div>
 </div>
-<div class="cell" data-execution_count="17">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loss_fn(params, constraint<span class="op">=</span><span class="va">True</span>):</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    nn_fn <span class="op">=</span> <span class="kw">lambda</span> t, x: model.<span class="bu">apply</span>(params, t, x)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    vmap_nn_fn <span class="op">=</span> jax.vmap(nn_fn)</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    u_pred <span class="op">=</span> vmap_nn_fn(t_train, x_train)</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>u_pred<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>u_train<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> u_pred.shape <span class="op">==</span> u_train.shape</span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    mse <span class="op">=</span> jnp.mean((u_pred <span class="op">-</span> u_train) <span class="op">**</span> <span class="dv">2</span>)</span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> constraint <span class="kw">is</span> <span class="va">True</span>:</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        du_dx_fn <span class="op">=</span> jax.grad(nn_fn, argnums<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        du_dx <span class="op">=</span> jax.vmap(du_dx_fn)(tc, xc)</span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>du_dx<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        du_dt_fn <span class="op">=</span> jax.grad(nn_fn, argnums<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        du_dt <span class="op">=</span> jax.vmap(du_dt_fn)(tc, xc)</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>du_dt<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        d2u_dx2_fn <span class="op">=</span> jax.grad(du_dx_fn, argnums<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        d2u_dx2 <span class="op">=</span> jax.vmap(d2u_dx2_fn)(tc, xc)</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>d2u_dx2<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        u <span class="op">=</span> vmap_nn_fn(tc, xc)</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        f <span class="op">=</span> du_dt <span class="op">+</span> u <span class="op">*</span> du_dx <span class="op">-</span> (<span class="fl">0.01</span><span class="op">/</span>jnp.pi) <span class="op">*</span> d2u_dx2</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>        mse <span class="op">+=</span> jnp.mean(f <span class="op">**</span> <span class="dv">2</span>)</span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mse</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-execution_count="6">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loss_fn(params, constraint<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    nn_fn <span class="op">=</span> <span class="kw">lambda</span> t, x: model.<span class="bu">apply</span>(params, t, x)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    vmap_nn_fn <span class="op">=</span> jax.vmap(nn_fn)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    u_pred <span class="op">=</span> vmap_nn_fn(t_train, x_train)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>u_pred<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>u_train<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> u_pred.shape <span class="op">==</span> u_train.shape</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    mse <span class="op">=</span> jnp.mean((u_pred <span class="op">-</span> u_train) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> constraint <span class="kw">is</span> <span class="va">True</span>:</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        du_dx_fn <span class="op">=</span> jax.grad(nn_fn, argnums<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        du_dx <span class="op">=</span> jax.vmap(du_dx_fn)(tc, xc)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>du_dx<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        du_dt_fn <span class="op">=</span> jax.grad(nn_fn, argnums<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        du_dt <span class="op">=</span> jax.vmap(du_dt_fn)(tc, xc)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>du_dt<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        d2u_dx2_fn <span class="op">=</span> jax.grad(du_dx_fn, argnums<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        d2u_dx2 <span class="op">=</span> jax.vmap(d2u_dx2_fn)(tc, xc)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>d2u_dx2<span class="sc">.</span>shape<span class="op">=</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>        u <span class="op">=</span> vmap_nn_fn(tc, xc)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>        f <span class="op">=</span> du_dt <span class="op">+</span> u <span class="op">*</span> du_dx <span class="op">-</span> (<span class="fl">0.01</span><span class="op">/</span>jnp.pi) <span class="op">*</span> d2u_dx2</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>        mse <span class="op">+=</span> jnp.mean(f <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mse</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell" data-execution_count="7">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fit(value_and_grad_fn, init_params, n_iters):</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    opt <span class="op">=</span> optax.adam(<span class="fl">1e-3</span>)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    init_state <span class="op">=</span> opt.init(init_params)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">@jax.jit</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> one_step(params_and_state, aux):</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        params, state <span class="op">=</span> params_and_state</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        loss, grads <span class="op">=</span> value_and_grad_fn(params)</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        updates, state <span class="op">=</span> opt.update(grads, state)</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        params <span class="op">=</span> optax.apply_updates(params, updates)</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (params, state), loss</span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    params_and_state <span class="op">=</span> (init_params, init_state)</span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    (params, state), loss_history <span class="op">=</span> jax.lax.scan(one_step, params_and_state, <span class="va">None</span>, length<span class="op">=</span>n_iters)</span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> params, loss_history</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fit(value_and_grad_fn, init_params, n_iters):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    opt <span class="op">=</span> optax.adam(<span class="fl">1e-3</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    init_state <span class="op">=</span> opt.init(init_params)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">@jax.jit</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> one_step(params_and_state, aux):</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        params, state <span class="op">=</span> params_and_state</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        loss, grads <span class="op">=</span> value_and_grad_fn(params)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        updates, state <span class="op">=</span> opt.update(grads, state)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        params <span class="op">=</span> optax.apply_updates(params, updates)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (params, state), loss</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    params_and_state <span class="op">=</span> (init_params, init_state)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    (params, state), loss_history <span class="op">=</span> jax.lax.scan(one_step, params_and_state, <span class="va">None</span>, length<span class="op">=</span>n_iters)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> params, loss_history</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="11">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>loss_fn(init_params, constraint<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>u_pred.shape=(100,) u_train.shape=(100,)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Traceback (most recent call last):
+  File "_pydevd_bundle/pydevd_cython.pyx", line 1081, in _pydevd_bundle.pydevd_cython.PyDBFrame.trace_dispatch
+  File "_pydevd_bundle/pydevd_cython.pyx", line 297, in _pydevd_bundle.pydevd_cython.PyDBFrame.do_wait_suspend
+  File "/home/patel_zeel/miniconda3/envs/jax_gpu/lib/python3.9/site-packages/debugpy/_vendored/pydevd/pydevd.py", line 2023, in do_wait_suspend
+    keep_suspended = self._do_wait_suspend(thread, frame, event, arg, suspend_type, from_this_thread, frames_tracker)
+  File "/home/patel_zeel/miniconda3/envs/jax_gpu/lib/python3.9/site-packages/debugpy/_vendored/pydevd/pydevd.py", line 2059, in _do_wait_suspend
+    time.sleep(0.01)
+KeyboardInterrupt</code></pre>
+</div>
+<div class="cell-output cell-output-error">
+<pre><code>KeyboardInterrupt: </code></pre>
+</div>
 </div>
 <div class="cell" data-execution_count="8">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> jr.PRNGKey(<span class="dv">3</span>)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>init_params <span class="op">=</span> model.init(key, t_train[<span class="dv">0</span>], x_train[<span class="dv">0</span>])</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>n_iters <span class="op">=</span> <span class="dv">5000</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Training with constraint"</span>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>value_and_grad_fn <span class="op">=</span> jax.value_and_grad(<span class="kw">lambda</span> params: loss_fn(params, constraint<span class="op">=</span><span class="va">True</span>))</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>c_params, c_loss_history <span class="op">=</span> fit(value_and_grad_fn, init_params, n_iters<span class="op">=</span>n_iters)</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Training without constraint"</span>)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>value_and_grad_fn <span class="op">=</span> jax.value_and_grad(<span class="kw">lambda</span> params: loss_fn(params, constraint<span class="op">=</span><span class="va">False</span>))</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>params, loss_history <span class="op">=</span> fit(value_and_grad_fn, init_params, n_iters<span class="op">=</span>n_iters)</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>plt.plot(loss_history, label<span class="op">=</span><span class="st">'loss without constraint'</span>)</span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>plt.plot(c_loss_history, label<span class="op">=</span><span class="st">'loss with constraint'</span>)<span class="op">;</span></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>plt.legend()<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> jr.PRNGKey(<span class="dv">3</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>init_params <span class="op">=</span> model.init(key, t_train[<span class="dv">0</span>], x_train[<span class="dv">0</span>])</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>n_iters <span class="op">=</span> <span class="dv">5000</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Training with constraint"</span>)</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>value_and_grad_fn <span class="op">=</span> jax.value_and_grad(<span class="kw">lambda</span> params: loss_fn(params, constraint<span class="op">=</span><span class="va">True</span>))</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>c_params, c_loss_history <span class="op">=</span> fit(value_and_grad_fn, init_params, n_iters<span class="op">=</span>n_iters)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Training without constraint"</span>)</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>value_and_grad_fn <span class="op">=</span> jax.value_and_grad(<span class="kw">lambda</span> params: loss_fn(params, constraint<span class="op">=</span><span class="va">False</span>))</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>params, loss_history <span class="op">=</span> fit(value_and_grad_fn, init_params, n_iters<span class="op">=</span>n_iters)</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>plt.plot(loss_history, label<span class="op">=</span><span class="st">'loss without constraint'</span>)</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>plt.plot(c_loss_history, label<span class="op">=</span><span class="st">'loss with constraint'</span>)<span class="op">;</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>plt.legend()<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Training with constraint
 u_pred.shape=(100,) u_train.shape=(100,)
@@ -372,85 +397,85 @@ Training without constraint
 u_pred.shape=(100,) u_train.shape=(100,)</code></pre>
 </div>
 <div class="cell-output cell-output-display">
-<p><img src="Burgers_Equation_files/figure-html/cell-9-output-2.png" class="img-fluid"></p>
+<p><img src="Burgers_Equation_files/figure-html/cell-10-output-2.png" class="img-fluid"></p>
 </div>
 </div>
 <div class="cell" data-execution_count="10">
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>params_list <span class="op">=</span> [c_params, params]</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">'with constraint'</span>, <span class="st">'without constraint'</span>]</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>pred_fn <span class="op">=</span> jax.jit(jax.vmap(model.<span class="bu">apply</span>, in_axes<span class="op">=</span>(<span class="va">None</span>, <span class="dv">0</span>, <span class="dv">0</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>params_list <span class="op">=</span> [c_params, params]</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">'with constraint'</span>, <span class="st">'without constraint'</span>]</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>pred_fn <span class="op">=</span> jax.jit(jax.vmap(model.<span class="bu">apply</span>, in_axes<span class="op">=</span>(<span class="va">None</span>, <span class="dv">0</span>, <span class="dv">0</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell" data-execution_count="11">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">6</span>))</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, (tmp_params, label) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(params_list, labels)):</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    u_pred <span class="op">=</span> pred_fn(tmp_params, T.ravel(), X.ravel())</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    u_pred_train <span class="op">=</span> pred_fn(tmp_params, t_train, x_train)</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    mappable <span class="op">=</span> ax[<span class="dv">0</span>, idx].imshow(u_pred.reshape(<span class="dv">100</span>, <span class="dv">256</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    fig.colorbar(mappable, ax<span class="op">=</span>ax[<span class="dv">0</span>, idx])</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].scatter(Exact.ravel(), u_pred, s<span class="op">=</span><span class="dv">1</span>, label<span class="op">=</span>label)<span class="op">;</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].scatter(u_train, u_pred_train, s<span class="op">=</span><span class="dv">1</span>, label<span class="op">=</span><span class="ss">f'</span><span class="sc">{</span>label<span class="sc">}</span><span class="ss"> (train points)'</span>)</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].legend()</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_xlabel(<span class="st">'Exact'</span>)</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_ylabel(<span class="st">'Predicted'</span>)</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_ylim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">1.2</span>)</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_xlim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">1.2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">6</span>))</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, (tmp_params, label) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(params_list, labels)):</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    u_pred <span class="op">=</span> pred_fn(tmp_params, T.ravel(), X.ravel())</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    u_pred_train <span class="op">=</span> pred_fn(tmp_params, t_train, x_train)</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    mappable <span class="op">=</span> ax[<span class="dv">0</span>, idx].imshow(u_pred.reshape(<span class="dv">100</span>, <span class="dv">256</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    fig.colorbar(mappable, ax<span class="op">=</span>ax[<span class="dv">0</span>, idx])</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].scatter(Exact.ravel(), u_pred, s<span class="op">=</span><span class="dv">1</span>, label<span class="op">=</span>label)<span class="op">;</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].scatter(u_train, u_pred_train, s<span class="op">=</span><span class="dv">1</span>, label<span class="op">=</span><span class="ss">f'</span><span class="sc">{</span>label<span class="sc">}</span><span class="ss"> (train points)'</span>)</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].legend()</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_xlabel(<span class="st">'Exact'</span>)</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_ylabel(<span class="st">'Predicted'</span>)</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_ylim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">1.2</span>)</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    ax[<span class="dv">1</span>, idx].set_xlim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">1.2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
-<p><img src="Burgers_Equation_files/figure-html/cell-11-output-1.png" class="img-fluid"></p>
+<p><img src="Burgers_Equation_files/figure-html/cell-12-output-1.png" class="img-fluid"></p>
 </div>
 </div>
 </section>
 <section id="sliced-prediction" class="level3">
 <h3 class="anchored" data-anchor-id="sliced-prediction">Sliced prediction</h3>
 <div class="cell" data-execution_count="17">
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">5</span>))</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>plt.rc(<span class="st">'font'</span>, size<span class="op">=</span><span class="dv">18</span>)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> axes, t_val <span class="kw">in</span> <span class="bu">zip</span>(ax, [<span class="fl">0.25</span>, <span class="fl">0.50</span>, <span class="fl">0.75</span>]):</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> X.ravel()[T.ravel()<span class="op">==</span>t_val]</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    t <span class="op">=</span> jnp.ones_like(x) <span class="op">*</span> t_val</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    u <span class="op">=</span> Exact.ravel()[T.ravel()<span class="op">==</span>t_val]</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> tmp_params, label <span class="kw">in</span> <span class="bu">zip</span>(params_list, labels):</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        pred_u <span class="op">=</span> pred_fn(tmp_params, t, x)</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        axes.plot(x, pred_u, label<span class="op">=</span>label)</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    axes.plot(x, u, label<span class="op">=</span><span class="st">'Exact'</span>, c<span class="op">=</span><span class="st">'k'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, linewidth<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    axes.set_title(<span class="ss">f't = </span><span class="sc">{</span>t_val<span class="sc">}</span><span class="ss">'</span>)</span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    axes.set_xlabel(<span class="st">'$x$'</span>)</span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    axes.set_ylabel(<span class="st">'$u(t, x)$'</span>)</span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>axes.legend(bbox_to_anchor<span class="op">=</span>(<span class="dv">1</span>, <span class="dv">1</span>), loc<span class="op">=</span><span class="st">'upper left'</span>)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">5</span>))</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>plt.rc(<span class="st">'font'</span>, size<span class="op">=</span><span class="dv">18</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> axes, t_val <span class="kw">in</span> <span class="bu">zip</span>(ax, [<span class="fl">0.25</span>, <span class="fl">0.50</span>, <span class="fl">0.75</span>]):</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> X.ravel()[T.ravel()<span class="op">==</span>t_val]</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    t <span class="op">=</span> jnp.ones_like(x) <span class="op">*</span> t_val</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    u <span class="op">=</span> Exact.ravel()[T.ravel()<span class="op">==</span>t_val]</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> tmp_params, label <span class="kw">in</span> <span class="bu">zip</span>(params_list, labels):</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        pred_u <span class="op">=</span> pred_fn(tmp_params, t, x)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        axes.plot(x, pred_u, label<span class="op">=</span>label)</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    axes.plot(x, u, label<span class="op">=</span><span class="st">'Exact'</span>, c<span class="op">=</span><span class="st">'k'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, linewidth<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    axes.set_title(<span class="ss">f't = </span><span class="sc">{</span>t_val<span class="sc">}</span><span class="ss">'</span>)</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    axes.set_xlabel(<span class="st">'$x$'</span>)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    axes.set_ylabel(<span class="st">'$u(t, x)$'</span>)</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>axes.legend(bbox_to_anchor<span class="op">=</span>(<span class="dv">1</span>, <span class="dv">1</span>), loc<span class="op">=</span><span class="st">'upper left'</span>)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
-<p><img src="Burgers_Equation_files/figure-html/cell-12-output-1.png" class="img-fluid"></p>
+<p><img src="Burgers_Equation_files/figure-html/cell-13-output-1.png" class="img-fluid"></p>
 </div>
 </div>
 <div class="cell" data-execution_count="29">
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">6</span>))</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>tmp_params <span class="op">=</span> params_list[<span class="dv">0</span>]</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>u_pred <span class="op">=</span> pred_fn(tmp_params, T.ravel(), X.ravel())</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>u_pred_train <span class="op">=</span> pred_fn(tmp_params, t_train, x_train)</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>mappable <span class="op">=</span> ax[<span class="dv">0</span>].imshow(u_pred.reshape(<span class="dv">100</span>, <span class="dv">256</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>fig.colorbar(mappable, ax<span class="op">=</span>ax[<span class="dv">0</span>])</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_xlabel(<span class="st">'$t$'</span>)</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_ylabel(<span class="st">'$x$'</span>)</span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_title(<span class="st">'PINN prediction'</span>)</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>mappable <span class="op">=</span> ax[<span class="dv">1</span>].imshow(Exact.reshape(<span class="dv">100</span>, <span class="dv">256</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>fig.colorbar(mappable, ax<span class="op">=</span>ax[<span class="dv">1</span>])</span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_xlabel(<span class="st">'$t$'</span>)</span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_ylabel(<span class="st">'$x$'</span>)</span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_title(<span class="st">'Exact solution'</span>)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">6</span>))</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>tmp_params <span class="op">=</span> params_list[<span class="dv">0</span>]</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>u_pred <span class="op">=</span> pred_fn(tmp_params, T.ravel(), X.ravel())</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>u_pred_train <span class="op">=</span> pred_fn(tmp_params, t_train, x_train)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>mappable <span class="op">=</span> ax[<span class="dv">0</span>].imshow(u_pred.reshape(<span class="dv">100</span>, <span class="dv">256</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>fig.colorbar(mappable, ax<span class="op">=</span>ax[<span class="dv">0</span>])</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_xlabel(<span class="st">'$t$'</span>)</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_ylabel(<span class="st">'$x$'</span>)</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">0</span>].set_title(<span class="st">'PINN prediction'</span>)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>mappable <span class="op">=</span> ax[<span class="dv">1</span>].imshow(Exact.reshape(<span class="dv">100</span>, <span class="dv">256</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>fig.colorbar(mappable, ax<span class="op">=</span>ax[<span class="dv">1</span>])</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_xlabel(<span class="st">'$t$'</span>)</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_ylabel(<span class="st">'$x$'</span>)</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>ax[<span class="dv">1</span>].set_title(<span class="st">'Exact solution'</span>)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
-<p><img src="Burgers_Equation_files/figure-html/cell-13-output-1.png" class="img-fluid"></p>
+<p><img src="Burgers_Equation_files/figure-html/cell-14-output-1.png" class="img-fluid"></p>
 </div>
 </div>
 </section>
 <section id="metrics" class="level3">
 <h3 class="anchored" data-anchor-id="metrics">Metrics</h3>
 <div class="cell" data-execution_count="12">
-<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>c_pred_u <span class="op">=</span> pred_fn(c_params, T.ravel(), X.ravel())</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>pred_u <span class="op">=</span> pred_fn(params, T.ravel(), X.ravel())</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RMSE (constrained)= </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(np.mean((Exact.ravel() <span class="op">-</span> c_pred_u.ravel())<span class="op">**</span><span class="dv">2</span>))<span class="sc">:0.4f}</span><span class="ss">"</span>)</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RMSE (unconstrained)= </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(np.mean((Exact.ravel() <span class="op">-</span> pred_u.ravel())<span class="op">**</span><span class="dv">2</span>))<span class="sc">:0.4f}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>c_pred_u <span class="op">=</span> pred_fn(c_params, T.ravel(), X.ravel())</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>pred_u <span class="op">=</span> pred_fn(params, T.ravel(), X.ravel())</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RMSE (constrained)= </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(np.mean((Exact.ravel() <span class="op">-</span> c_pred_u.ravel())<span class="op">**</span><span class="dv">2</span>))<span class="sc">:0.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RMSE (unconstrained)= </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(np.mean((Exact.ravel() <span class="op">-</span> pred_u.ravel())<span class="op">**</span><span class="dv">2</span>))<span class="sc">:0.4f}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>RMSE (constrained)= 0.0206
 RMSE (unconstrained)= 0.3494</code></pre>
@@ -460,16 +485,16 @@ RMSE (unconstrained)= 0.3494</code></pre>
 <section id="extrapolate" class="level3">
 <h3 class="anchored" data-anchor-id="extrapolate">Extrapolate</h3>
 <div class="cell" data-execution_count="13">
-<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>t_extra <span class="op">=</span> jnp.linspace(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">100</span>)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>x_extra <span class="op">=</span> jnp.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">256</span>)</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>T_extra, X_extra <span class="op">=</span> jnp.meshgrid(t_extra, x_extra)</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>u_pred <span class="op">=</span> pred_fn(c_params, T_extra.ravel(), X_extra.ravel())</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>plt.imshow(u_pred.reshape((<span class="dv">100</span>, <span class="dv">256</span>), order<span class="op">=</span><span class="st">'F'</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[T_extra.<span class="bu">min</span>(), T_extra.<span class="bu">max</span>(), X_extra.<span class="bu">min</span>(), X_extra.<span class="bu">max</span>()], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>plt.colorbar()<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>t_extra <span class="op">=</span> jnp.linspace(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">100</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>x_extra <span class="op">=</span> jnp.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">256</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>T_extra, X_extra <span class="op">=</span> jnp.meshgrid(t_extra, x_extra)</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>u_pred <span class="op">=</span> pred_fn(c_params, T_extra.ravel(), X_extra.ravel())</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>plt.imshow(u_pred.reshape((<span class="dv">100</span>, <span class="dv">256</span>), order<span class="op">=</span><span class="st">'F'</span>).T, cmap<span class="op">=</span><span class="st">'rainbow'</span>, extent<span class="op">=</span>[T_extra.<span class="bu">min</span>(), T_extra.<span class="bu">max</span>(), X_extra.<span class="bu">min</span>(), X_extra.<span class="bu">max</span>()], aspect<span class="op">=</span><span class="st">'auto'</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>plt.colorbar()<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
-<p><img src="Burgers_Equation_files/figure-html/cell-15-output-1.png" class="img-fluid"></p>
+<p><img src="Burgers_Equation_files/figure-html/cell-16-output-1.png" class="img-fluid"></p>
 </div>
 </div>
 </section>
@@ -477,8 +502,8 @@ RMSE (unconstrained)= 0.3494</code></pre>
 <section id="discrete-time-models" class="level1">
 <h1>Discrete time models</h1>
 <div class="cell" data-execution_count="23">
-<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>ac_data <span class="op">=</span> scipy.io.loadmat(<span class="st">"AC.mat"</span>)</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>ac_data[<span class="st">'tt'</span>].ravel()[<span class="dv">180</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>ac_data <span class="op">=</span> scipy.io.loadmat(<span class="st">"AC.mat"</span>)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>ac_data[<span class="st">'tt'</span>].ravel()[<span class="dv">180</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display" data-execution_count="23">
 <pre><code>0.9</code></pre>
 </div>
