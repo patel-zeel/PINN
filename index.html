@@ -155,6 +155,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#example-1-d-fluid-flow-with-burgers-equation-1" id="toc-example-1-d-fluid-flow-with-burgers-equation-1" class="nav-link" data-scroll-target="#example-1-d-fluid-flow-with-burgers-equation-1">Example: 1-D fluid flow with Burgers’ equation</a></li>
   <li><a href="#inputs-and-outputs" id="toc-inputs-and-outputs" class="nav-link" data-scroll-target="#inputs-and-outputs">Inputs and outputs</a></li>
   <li><a href="#loss-function" id="toc-loss-function" class="nav-link" data-scroll-target="#loss-function">Loss function</a></li>
+  <li><a href="#can-we-predict-over-space-for-a-specific-time-t" id="toc-can-we-predict-over-space-for-a-specific-time-t" class="nav-link" data-scroll-target="#can-we-predict-over-space-for-a-specific-time-t">Can we predict over space for a specific time <span class="math inline">\(t\)</span>?</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -450,7 +451,7 @@ u(0, x) = -\sin(\pi x)
 <p><span class="math display">\[
 \mathcal{L}_{physics} = \frac{1}{N}\sum_{i=1}^{N} \left(\frac{\partial \hat{u}_i}{\partial t} + \hat{u}_i \frac{\partial \hat{u}_i}{\partial x} - \nu \frac{\partial^2 \hat{u}_i}{\partial x^2}\right)^2
 \]</span></p>
-<div class="cell" data-execution_count="13">
+<div class="cell" data-execution_count="26">
 <div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> data_driven_loss_fn(params, t_n, x_n, u_n):</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    u_pred <span class="op">=</span> model.<span class="bu">apply</span>(params, t_n, x_n)</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> jnp.mean(jnp.square(u_pred.ravel() <span class="op">-</span> u_n.ravel()))</span>
@@ -458,21 +459,16 @@ u(0, x) = -\sin(\pi x)
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> physics_informed_loss_fn(params, t_c, x_c):</span>
 <span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> loss_for_a_single_datapoint(t, x):</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>        u <span class="op">=</span> model.<span class="bu">apply</span>(params, t, x)</span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>        u_t <span class="op">=</span> jax.grad(model.<span class="bu">apply</span>, argnums<span class="op">=</span><span class="dv">1</span>)(params, t, x)</span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        u_x <span class="op">=</span> jax.grad(model.<span class="bu">apply</span>, argnums<span class="op">=</span><span class="dv">2</span>)(params, t, x)</span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>        u_xx <span class="op">=</span> jax.grad(</span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span> params, t, x: jax.grad(model.<span class="bu">apply</span>, argnums<span class="op">=</span><span class="dv">2</span>)(</span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>                params, t, x</span>
-<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>            ).squeeze(),  <span class="co"># squeeze is needed because the output must be a scalar</span></span>
-<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>            argnums<span class="op">=</span><span class="dv">2</span>,</span>
-<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>        )(params, t, x)</span>
-<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> jnp.square(u_t <span class="op">+</span> u <span class="op">*</span> u_x <span class="op">-</span> config.nu <span class="op">*</span> u_xx)</span>
-<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> jax.vmap(loss_for_a_single_datapoint)(t_c, x_c).mean()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>        u <span class="op">=</span> model.<span class="bu">apply</span>(params, t, x).squeeze()</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>        u_t <span class="op">=</span> jax.grad(model.<span class="bu">apply</span>, argnums<span class="op">=</span><span class="dv">1</span>)(params, t, x).squeeze()</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        u_x <span class="op">=</span> jax.grad(model.<span class="bu">apply</span>, argnums<span class="op">=</span><span class="dv">2</span>)(params, t, x).squeeze()</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>        u_xx <span class="op">=</span> jax.jacrev(jax.jacrev(model.<span class="bu">apply</span>, argnums<span class="op">=</span><span class="dv">2</span>), argnums<span class="op">=</span><span class="dv">2</span>)(params, t, x).squeeze()</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> jnp.square(u_t <span class="op">+</span> u <span class="op">*</span> u_x <span class="op">-</span> config.nu <span class="op">*</span> u_xx)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> jax.vmap(loss_for_a_single_datapoint)(t_c, x_c).mean()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Now, we define the neural network model as follows:</p>
-<div class="cell" data-execution_count="14">
+<div class="cell" data-execution_count="27">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NN(nn.Module):</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    config: Config</span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -489,7 +485,7 @@ u(0, x) = -\sin(\pi x)
 <span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> output.squeeze()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Let’s define a fit and predict method that we can use for training and inference. These are some <code>jax</code> specific tricks that we need to use to make sure that the code is compiled and runs efficiently.</p>
-<div class="cell" data-execution_count="15">
+<div class="cell" data-execution_count="28">
 <div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fit(config, params, loss_fn, input_data, output_data):</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    partial_loss_fn <span class="op">=</span> partial(loss_fn, input_data<span class="op">=</span>input_data, output_data<span class="op">=</span>output_data)</span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    value_and_grad_fn <span class="op">=</span> jax.jit(jax.value_and_grad(partial_loss_fn))</span>
@@ -515,7 +511,7 @@ u(0, x) = -\sin(\pi x)
 <span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model.<span class="bu">apply</span>(params, <span class="op">*</span>input_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>First, we will train the model without any physics-informed loss. We will use the data-driven loss to train the model.</p>
-<div class="cell" data-execution_count="16">
+<div class="cell" data-execution_count="29">
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> Config()</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> NN(config)</span>
@@ -537,14 +533,14 @@ u(0, x) = -\sin(\pi x)
 <span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Epoch"</span>)</span>
 <span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>_ <span class="op">=</span> plt.ylabel(<span class="st">"Loss"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Training time: 5.48 seconds</code></pre>
+<pre><code>Training time: 4.55 seconds</code></pre>
 </div>
 <div class="cell-output cell-output-display">
 <p><img src="index_files/figure-html/cell-17-output-2.png" class="img-fluid"></p>
 </div>
 </div>
 <p>Let’s see what the model has learned.</p>
-<div class="cell" data-execution_count="17">
+<div class="cell" data-execution_count="30">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> plot(model, params):</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    T, X <span class="op">=</span> np.meshgrid(t_gt, x_gt)</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    pred_u <span class="op">=</span> predict(model, params, (T.reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>), X.reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)))</span>
@@ -580,7 +576,7 @@ u(0, x) = -\sin(\pi x)
 </div>
 </div>
 <p>We can see that the prediction is not very good. Let’s now train it by including the physics-informed loss.</p>
-<div class="cell" data-execution_count="18">
+<div class="cell" data-execution_count="31">
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> model.init(jax.random.PRNGKey(<span class="dv">1</span>), t_n, x_n)</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -604,21 +600,21 @@ u(0, x) = -\sin(\pi x)
 <span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Epoch"</span>)</span>
 <span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a>_ <span class="op">=</span> plt.ylabel(<span class="st">"Loss"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Training time: 30.91 seconds</code></pre>
+<pre><code>Training time: 30.85 seconds</code></pre>
 </div>
 <div class="cell-output cell-output-display">
 <p><img src="index_files/figure-html/cell-19-output-2.png" class="img-fluid"></p>
 </div>
 </div>
 <p>Let’s see what physics-informed model has learned.</p>
-<div class="cell" data-execution_count="19">
+<div class="cell" data-execution_count="32">
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>plot(model, params)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <p><img src="index_files/figure-html/cell-20-output-1.png" class="img-fluid"></p>
 </div>
 </div>
 <p>We can also compare the performance at a perticular time step.</p>
-<div class="cell" data-execution_count="20">
+<div class="cell" data-execution_count="33">
 <div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>times <span class="op">=</span> [<span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.75</span>]</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">3</span>))</span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>T, X <span class="op">=</span> np.meshgrid(t_gt, x_gt)</span>
@@ -660,44 +656,11 @@ k_4 &amp;= \Delta t f(t + \Delta t, u_t + \Delta t k_3)
 </section>
 <section id="generealized-runge-kutta-method" class="level3">
 <h3 class="anchored" data-anchor-id="generealized-runge-kutta-method">Generealized Runge-Kutta method</h3>
-<p>We can generelize the above equation for any order of Runge-Kutta method as follows: <span class="math display">\[
-u_{t+\Delta t} = u_t + \Delta t \sum_{i=1}^{s} b_i k_i
-\]</span> where <span class="math inline">\(s\)</span> is the order of the Runge-Kutta method and <span class="math inline">\(b_i\)</span> are the coefficients of the method. The intermediate values <span class="math inline">\(k_i\)</span> are given by: <span class="math display">\[
-k_i = f\left(u_t + \Delta t \sum_{j=1}^{s} a_{ij} k_j, t + c_i \Delta t\right)
-\]</span> where <span class="math inline">\(a_{ij}\)</span> are the coefficients of the method and <span class="math inline">\(c_i\)</span> are the nodes of the method.</p>
-<p>Values of <span class="math inline">\(a_{ij}\)</span>, <span class="math inline">\(b_i\)</span> and <span class="math inline">\(c_i\)</span> are tabulated for different orders of Runge-Kutta methods known as Butcher tableau. Here is the Butcher tableau for Runge-Kutta 4th order method:</p>
-<table class="table">
-<thead>
-<tr class="header">
-<th><span class="math inline">\(c_i\)</span></th>
-<th><span class="math inline">\(a_{ij}\)</span></th>
-<th><span class="math inline">\(b_i\)</span></th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>0</td>
-<td></td>
-<td>1/6</td>
-</tr>
-<tr class="even">
-<td>1/2</td>
-<td>1/2</td>
-<td>1/3</td>
-</tr>
-<tr class="odd">
-<td>1/2</td>
-<td>0</td>
-<td>1/3</td>
-</tr>
-<tr class="even">
-<td>1</td>
-<td>0</td>
-<td>1/6</td>
-</tr>
-</tbody>
-</table>
-<p>One can verify these coefficients by substituting them in the general equations for <span class="math inline">\(k_i\)</span> and <span class="math inline">\(u_{t+\Delta t}\)</span>.</p>
+<p>We can generalize the above equation for <span class="math inline">\(q\)</span> stage Runge-Kutta method as follows: <span class="math display">\[\begin{align}
+u_{t+c_i\Delta t} &amp;= u_t + \Delta t \sum_{j=1}^{q} a_{ij} k_i\\
+u_{t+\Delta t} &amp;= u_t + \Delta t \sum_{j=1}^{q} b_j k_i\\
+k_i &amp;= f\left(u_t + \Delta t \sum_{j=1}^{s} a_{ij} k_j, t + c_i \Delta t\right)
+\end{align}\]</span> where <span class="math inline">\(q\)</span> are number of stages in the Runge-Kutta method and <span class="math inline">\(a_{ij}, b_i\)</span> are the coefficients of the method.</p>
 </section>
 <section id="example-1-d-fluid-flow-with-burgers-equation-1" class="level3">
 <h3 class="anchored" data-anchor-id="example-1-d-fluid-flow-with-burgers-equation-1">Example: 1-D fluid flow with Burgers’ equation</h3>
@@ -708,21 +671,21 @@ k_i = f\left(u_t + \Delta t \sum_{j=1}^{s} a_{ij} k_j, t + c_i \Delta t\right)
 </section>
 <section id="inputs-and-outputs" class="level3">
 <h3 class="anchored" data-anchor-id="inputs-and-outputs">Inputs and outputs</h3>
-<p>In this problem, neural network takes <span class="math inline">\(x\)</span> as input and outputs intermediate values <span class="math inline">\(u_{c_i\Delta t}(x)\)</span> and the final value <span class="math inline">\(u_{t+\Delta t}(x)\)</span>.</p>
+<p>In this problem, neural network takes <span class="math inline">\(x\)</span> as input and outputs intermediate values <span class="math inline">\(u_{t+c_i\Delta t}(x)\)</span> and the final value <span class="math inline">\(u_{t+\Delta t}(x)\)</span>.</p>
 <ul>
 <li>Input: <span class="math inline">\(x\)</span></li>
-<li>Output: [<span class="math inline">\(u_{c_1\Delta t}(x)\)</span>, <span class="math inline">\(u_{c_2\Delta t}(x)\)</span>, …, <span class="math inline">\(u_{t+\Delta t}(x)\)</span>]</li>
+<li>Output: [<span class="math inline">\(u_{t+c_1\Delta t}(x)\)</span>, <span class="math inline">\(u_{t+c_2\Delta t}(x)\)</span>, …, <span class="math inline">\(u_{t+\Delta t}(x)\)</span>]</li>
 </ul>
 <blockquote class="blockquote">
 <p>Note that we don’t need the values of <span class="math inline">\(c_i\)</span> since they are not needed anywhere in computation.</p>
 </blockquote>
 <p>Let’s load the <span class="math inline">\(A\)</span> and <span class="math inline">\(\mathbf{b}\)</span> co-efficients of the Runge-Kutta 100 stage method.</p>
-<div class="cell" data-execution_count="85">
+<div class="cell" data-execution_count="21">
 <div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>q <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>RK_weights <span class="op">=</span> np.loadtxt(<span class="ss">f"Butcher_IRK</span><span class="sc">{</span>q<span class="sc">}</span><span class="ss">.txt"</span>)</span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>RK_weights <span class="op">=</span> RK_weights[:q<span class="op">**</span><span class="dv">2</span><span class="op">+</span>q].reshape(q<span class="op">+</span><span class="dv">1</span>, q)</span>
 <span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>RK_weights.shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="85">
+<div class="cell-output cell-output-display" data-execution_count="21">
 <pre><code>(101, 100)</code></pre>
 </div>
 </div>
@@ -731,17 +694,18 @@ k_i = f\left(u_t + \Delta t \sum_{j=1}^{s} a_{ij} k_j, t + c_i \Delta t\right)
 <h3 class="anchored" data-anchor-id="loss-function">Loss function</h3>
 <p>We can use the RK equation as following to compute the loss function:</p>
 <p><span class="math display">\[\begin{align}
-f_{c_i}(x) &amp;= -\hat{u}_{c_i}\frac{\partial \hat{u}_{c_i}}{\partial x} + \nu \frac{\partial^2 \hat{u}_{c_i}}{\partial x^2} \\
-\hat{u}_t(x) &amp;= \hat{u}_{t+\Delta t}(x) - \Delta t \sum_{i=1}^{s} b_i f_{c_i}(x)\\
-\mathcal{L}_{data} &amp;= \frac{1}{N}\sum_{i=1}^{N} \left(\hat{u}_{t}(x_i) - u_{t}(x_i)\right)^2 \\
+k_i &amp;= -\hat{u}_{t+c_i\Delta t}\frac{\partial \hat{u}_{t+c_i\Delta t}}{\partial x} + \nu \frac{\partial^2 \hat{u}_{t+c_i\Delta t}}{\partial x^2}, \quad i=1,2,...,q \\
+\hat{u}_{t+c_i\Delta t}(x) &amp;= \hat{u}^{c_i}_t(x) + \Delta t \sum_{j=1}^{q} a_{ij} k_j, \quad i=1,2,...,q \\
+\hat{u}_{t+\Delta t}(x) &amp;= \hat{u}^{1}_t(x) + \Delta t \sum_{j=1}^{q} b_j k_j \\
+\mathcal{L}_{data} &amp;= \sum_{i=1}^{N} \left( \left(\hat{u}^{1}_{t}(x_i) - u_{t}(x_i)\right)^2 + \sum_{j=1}^{q} \left(\hat{u}^{c_i}_{t}(x_i) - u_{t}(x_i)\right)^2\right) \\
 \end{align}\]</span></p>
 <p>We need to satisfy the boundary conditions as well. We can do that by adding the following loss function: <span class="math display">\[
-\mathcal{L}_{boundary} = \hat{u}_{t+\Delta t}(-1)^2 + \hat{u}_{t+\Delta t}(1)^2 + \sum_{j=1}^{s} \left(\hat{u}_{c_i}(-1)^2 + \hat{u}_{c_i}(1)^2\right)
+\mathcal{L}_{boundary} = \hat{u}_{t+\Delta t}(-1)^2 + \hat{u}_{t+\Delta t}(1)^2 + \sum_{j=1}^{q} \left(\hat{u}_{t+c_i\Delta t}(-1)^2 + \hat{u}_{t+c_i\Delta t}(1)^2\right)
 \]</span></p>
 <p>Total loss function is given by: <span class="math display">\[
 \mathcal{L} = \mathcal{L}_{data} + \mathcal{L}_{boundary}
 \]</span></p>
-<div class="cell" data-execution_count="86">
+<div class="cell" data-execution_count="34">
 <div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loss_fn(params, input_data, output_data):</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    x_i, x_b <span class="op">=</span> input_data</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    u_i <span class="op">=</span> output_data</span>
@@ -762,7 +726,7 @@ f_{c_i}(x) &amp;= -\hat{u}_{c_i}\frac{\partial \hat{u}_{c_i}}{\partial x} + \nu 
 <span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> l1 <span class="op">+</span> l2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div class="cell" data-execution_count="87">
+<div class="cell" data-execution_count="35">
 <div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> NN(nn.Module):</span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    config: Config</span>
 <span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -777,7 +741,7 @@ f_{c_i}(x) &amp;= -\hat{u}_{c_i}\frac{\partial \hat{u}_{c_i}}{\partial x} + \nu 
 <span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> nn.Dense(<span class="va">self</span>.config.neurons_per_layer[<span class="op">-</span><span class="dv">1</span>])(output)</span>
 <span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> output.squeeze()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div class="cell" data-execution_count="92">
+<div class="cell" data-execution_count="38">
 <div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>q <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>t_0 <span class="op">=</span> <span class="dv">0</span></span>
 <span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>t_final <span class="op">=</span> <span class="fl">0.9</span></span>
@@ -809,27 +773,42 @@ f_{c_i}(x) &amp;= -\hat{u}_{c_i}\frac{\partial \hat{u}_{c_i}}{\partial x} + \nu 
 <span id="cb30-29"><a href="#cb30-29" aria-hidden="true" tabindex="-1"></a>plt.plot(loss_history)<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>(256, 1)
-Training time: 33.90 seconds</code></pre>
-</div>
-<div class="cell-output cell-output-stderr">
-<pre><code>2023-05-03 10:25:38.842589: W external/xla/xla/service/gpu/ir_emitter_triton.cc:761] Shared memory size limit exceeded.</code></pre>
+Training time: 32.04 seconds</code></pre>
 </div>
 <div class="cell-output cell-output-display">
-<p><img src="index_files/figure-html/cell-25-output-3.png" class="img-fluid"></p>
+<p><img src="index_files/figure-html/cell-25-output-2.png" class="img-fluid"></p>
 </div>
 </div>
-<div class="cell" data-execution_count="94">
-<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>x_test <span class="op">=</span> df[<span class="st">"x"</span>][df[<span class="st">"t"</span>]<span class="op">==</span>t_final].values.reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>u_test <span class="op">=</span> df[<span class="st">"u"</span>][df[<span class="st">"t"</span>]<span class="op">==</span>t_final].values.reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>pred_u <span class="op">=</span> model.<span class="bu">apply</span>(params, x_test)[:, <span class="op">-</span><span class="dv">1</span>]</span>
-<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>plt.plot(x_test, u_test, label<span class="op">=</span><span class="st">"Ground truth"</span>)<span class="op">;</span></span>
-<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>plt.plot(x_test, pred_u, label<span class="op">=</span><span class="st">"Prediction"</span>)<span class="op">;</span></span>
-<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>plt.legend()<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell" data-execution_count="39">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>x_test <span class="op">=</span> df[<span class="st">"x"</span>][df[<span class="st">"t"</span>]<span class="op">==</span>t_final].values.reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>u_test <span class="op">=</span> df[<span class="st">"u"</span>][df[<span class="st">"t"</span>]<span class="op">==</span>t_final].values.reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>pred_u <span class="op">=</span> model.<span class="bu">apply</span>(params, x_test)[:, <span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>plt.plot(x_test, u_test, label<span class="op">=</span><span class="st">"Ground truth"</span>)<span class="op">;</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>plt.plot(x_test, pred_u, label<span class="op">=</span><span class="st">"Prediction"</span>)<span class="op">;</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>plt.legend()<span class="op">;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <p><img src="index_files/figure-html/cell-26-output-1.png" class="img-fluid"></p>
 </div>
+</div>
+</section>
+<section id="can-we-predict-over-space-for-a-specific-time-t" class="level3">
+<h3 class="anchored" data-anchor-id="can-we-predict-over-space-for-a-specific-time-t">Can we predict over space for a specific time <span class="math inline">\(t\)</span>?</h3>
+<p>Let’s try this experiment. We will now forumlate the burgers’ equation as a function of <span class="math inline">\(x\)</span> and <span class="math inline">\(t\)</span> and try to predict the values of <span class="math inline">\(u\)</span> at all times at a different location <span class="math inline">\(x+\Delta x\)</span>:</p>
+<p><span class="math display">\[
+\frac{\partial u}{\partial x} = f(u, x, t) = \frac{1}{u}\left(-\frac{\partial u}{\partial t} + \nu \frac{\partial^2 u}{\partial x^2}\right)
+\]</span></p>
+<p>For a specific time <span class="math inline">\(t\)</span>, the above equation can be written as: <span class="math display">\[
+\frac{\partial u}{\partial x} = f(u, x) = \frac{1}{u}\left(\nu \frac{\partial^2 u}{\partial x^2}\right)
+\]</span></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loss_fn(params, input_data, output_data):</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    t_ic, x_ic, x_b <span class="op">=</span> input_data</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    u_ic <span class="op">=</span> output_data</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># RK loss</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    u <span class="op">=</span> model.<span class="bu">apply</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 
 
